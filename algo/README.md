@@ -67,18 +67,22 @@ Nous stockons désormais le détail des scores dans le nœud de décision pour e
 *   `(:Battery)-[:EVALUATED_AS]->(:Decision)`
 
 ### Propriétés du nœud Decision
-* id: randomUUID(),
-* timestamp: datetime(),
-* // 1. Le résultat final
-* recommendation: "REPURPOSE",
-* // 2. Le scorecard complet
-* score_reuse: 15.5,
-* score_remanufacture: 65.0,
-* score_repurpose: 82.4,
-* score_recycle: 40.0,
-* // 3. Snapshot des données utilisées
-* input_soh_used: 0.78,
-* input_cycles_used: 450
+```JSON
+{
+    id: randomUUID(),
+    timestamp: datetime(),
+    // 1. Le résultat final
+    recommendation: "REPURPOSE",
+    // 2. Le scorecard complet
+    score_reuse: 15.5,
+    score_remanufacture: 65.0,
+    score_repurpose: 82.4,
+    score_recycle: 40.0,
+    // 3. Snapshot des données utilisées
+    input_soh_used: 0.78,
+    input_cycles_used: 450
+}
+```
 
 --- 
 
