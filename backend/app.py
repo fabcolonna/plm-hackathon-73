@@ -31,13 +31,7 @@ def evaluate():
         # Call the modular evaluation function
         result = evaluate_function(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10)
         
-        # Ensure result is a string
-        result_str = str(result) if result is not None else ""
-        
-        return jsonify({
-            'status': 'success',
-            'result': result_str
-        }), 200
+        return jsonify(result), 200
         
     except Exception as e:
         return jsonify({

@@ -32,7 +32,12 @@ Evaluates 10 arguments and returns a string result.
 ```json
 {
   "status": "success",
-  "result": "string result from evaluation"
+  "result": {
+    "metric1": 42,
+    "metric2": 100,
+    "metric3": 75,
+    "metric4": 88
+  }
 }
 ```
 
@@ -72,5 +77,6 @@ curl -X POST http://localhost:5001/evaluate \
 ## Notes
 
 - All 10 arguments are **required**
-- The result is always returned as a **string**
+- The result contains exactly **4 string-integer pairs**
+- Keys are strings, values are integers
 - The evaluation logic is implemented in `evaluator.py`
