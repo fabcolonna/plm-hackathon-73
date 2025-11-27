@@ -44,3 +44,43 @@ class BatteryRepository:
         result = tx.run(query, bat_id=battery_id, mkt_id=market_config_id)
         record = result.single()
         return record["digital_twin"] if record else None
+    
+    def save_decision(self, battery_id, decision_data, market_id):
+        """
+        Enregistre le résultat de l'algorithme dans Neo4j
+        """
+        query = """
+        MATCH (b:Battery {id: $bat_id})
+        MATCH (m:MarketConfig {id: $mkt_id})
+        
+        CREATE (d:Decision {
+            id: randomUUID(),
+            date: datetime(),
+            recommendation: $rec,
+            reason: $reason,
+            score_reuse: $s_reuse,
+            score_repurpose: $s_repurpose,
+            score_remanufacture: $s_reman,
+            score_recycle: $s_recycle
+        })
+        
+        MERGE (b)-[:HAS_DECISION]->(d)
+        MERGE (d)-[:CONTEXTUALIZED_BY]->(m)
+        
+        RETURN d.id as decision_id
+        """
+        
+        scores = decision_data['scores']
+        
+        with self.driver.session(database=self.database) as session:
+            result = session.run(query, 
+                bat_id=battery_id, 
+                mkt_id=market_id,
+                rec=decision_data['recommendation'],
+                reason=decision_data['reason'],
+                s_reuse=scores['Reuse'],
+                s_repurpose=scores['Repurpose'],
+                s_reman=scores['Remanufacture'],
+                s_recycle=scores['Recycle']
+            )
+            return result.single()["decision_id"]
