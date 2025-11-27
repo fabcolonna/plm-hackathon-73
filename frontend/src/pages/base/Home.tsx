@@ -19,8 +19,17 @@ const recommendationLikelihoods = [
 const DecisionMatrixView = () => (
   <div className="relative rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 p-8">
     <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(94,234,212,0.15),_transparent_55%)]" />
-    <div className="flex items-center justify-between text-xs uppercase tracking-[0.4em] text-slate-500">
-      <span>Decision matrix</span>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between text-xs uppercase tracking-[0.4em] text-slate-500">
+        <span>Decision matrix</span>
+        <span className="rounded-full border border-slate-700 px-3 py-1 text-[0.6rem] font-semibold tracking-[0.4em] text-slate-300">
+          Demo
+        </span>
+      </div>
+      <p className="text-xs text-slate-400">
+        This panel is illustrative only—the live decision matrix unlocks once
+        you sign in.
+      </p>
     </div>
     <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       {recommendationLikelihoods.map((item) => (
