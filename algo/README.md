@@ -71,34 +71,42 @@ L'algorithme ne doit pas être une "boîte noire" (comme un réseau de neurones 
 Nous utilisons une approche par Scorecard (Carte de Score). Chaque batterie reçoit 4 scores (un par voie de valorisation). Le score le plus élevé l'emporte sauf si un Veto de Sécurité est déclenché.
 
 ### Les Règles de Calcul (Matrice de Décision)
-Nous définissons des seuils et des poids.
+L'algorithme `src/engine/decision.py` croise les données techniques du Passeport (Chimie, Modularité) avec l'état réel du Diagnostic (Résistance, Défauts) et les besoins du Marché.
 
-* SOH (State of Health) : 0 à 100%.
-* Defects (Défauts) : None, Minor (réparable), Critical (dangereux).
-* Disassembly : Boolean.
-* Market Priority : Multiplicateur (ex: 1.0 = normal, 1.2 = forte demande).
+Le processus se déroule en 3 étapes :
 
-### 1. Calcul du Score de Base (Technique)
-* Option A : REUSE (Réutilisation directe - ex: EV to EV)
-    * Critère idéal : SOH > 90%, Pas de défauts.
-    * Formule : Score = (SOH * 100) - (Age_Penalty)
-    * Pénalité : Si Defects != None → Score = 0 (Veto).
+1. Le "Kill Switch"
+Avant tout calcul, l'algorithme vérifie la sécurité.
+Si Critical Defects (perforation, gonflement) OU History of Abuse est VRAI alors **DÉCISION IMMÉDIATE : RECYCLE**.
+Tous les autres scores sont mis à 0. La sécurité n'est pas négociable.
 
-* Option B : REMANUFACTURE (Réparation/Remplacement modules)
-    * Critère idéal : SOH > 80%, Défauts mineurs acceptables, Démontable.
-    * Formule : Score = (SOH * 90) + (DesignForDisassembly ? 20 : 0)
-    * Pénalité : Si Defects == Critical → Score = 0.
+2. La "Scorecard"
+Si la batterie est sûre, chaque option démarre à 0 (sauf Recycle qui a une base de 20pts) et accumule des points selon des critères précis :
 
-* Option C : REPURPOSE (Seconde vie - ex: Stockage stationnaire)
-    * Critère idéal : SOH entre 60% et 85%, Sécurité OK.
-    * Formule : Score = (SOH * 80) + (CycleLifeRemaining * Factor)
-    * Note : C'est souvent la "poubelle de luxe" pour ce qui n'est pas assez bon pour l'EV mais trop bon pour le broyeur.
+* Option A : REUSE (Réutilisation directe)
+    * Cible : Batterie "comme neuve".
+    * +50 pts si SOH ≥ 90% (Seuil configurable dans rules.py).
+    * +30 pts si Résistance Interne < 30 mOhm (Indicateur de chauffe).
+    * Pénalité : Score faible si la résistance est trop haute, même avec un bon SOH.
+
+* Option B : REMANUFACTURE (Réparation)
+    * Cible : Batterie saine mais nécessitant une intervention.
+    * +40 pts si SOH ≥ 85%.
+    * +0 à 50 pts selon le Design Modularity Score (Donnée Passeport).
+    * Logique : On ne recommande pas la réparation si la batterie est soudée et impossible à démonter (Modularité faible).
+
+* Option C : REPURPOSE (Seconde vie - ex: Stockage)
+    * Cible : Batterie fatiguée pour la mobilité mais stable.
+    * +60 pts si SOH ≥ 60% (Le stockage stationnaire est moins exigeant).
+    * +20 pts si Chimie = LFP (Très stable, idéale pour le stockage domestique).
 
 * Option D : RECYCLE (Extraction matières)
-    * Critère idéal : SOH < 60%, ou Défauts Critiques, ou Chimie précieuse (NMC).
-    * Formule : Score = (100 - SOH) + (CriticalDefect ? 100 : 0)
-    * Priorité : Si Safety == Danger → RECYCLE devient automatiquement le gagnant (Force Veto).
+    * Cible : Batterie en fin de vie ou matériaux précieux.
+    * Base : 20 pts (Toujours une option possible).
+    * +50 pts si SOH < 60% (Trop usée pour le reste).
+    * +40 pts si Chimie = NMC (Haute valeur du Nickel/Cobalt à la revente).
 
-### 2. Application du "Market Factor" (Demande Marché)
-Chaque score est multiplié par un facteur de configuration du centre de tri.
-Exemple : Si on a besoin de stockage d'urgence, Market_Repurpose_Weight = 1.3.
+3. L'Ajustement Marché
+Le score technique brut est ensuite multiplié par le coefficient du marché actuel (stocké dans Neo4j `MarketConfig`).
+
+Formule Finale : **`Score_Final = Score_Technique x Market_Weight`**
