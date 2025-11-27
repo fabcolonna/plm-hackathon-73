@@ -23,24 +23,22 @@ Le processus de décision suit une approche linéaire déclenchée par l'arrivé
 
 ## 3. Liste des Paramètres d'Entrée Sélectionnés
 
-Parmi la centaine d'attributs du Battery Passport, nous avons sélectionné ceux qui influencent directement la matrice de décision technique.
+Parmi la centaine d'attributs du Battery Passport, nous avons garder que les 6 indicateurs qui impactent directement l'algorithme de tri.
 
-### A. Identité & Conception (Facteurs fixes)
-*   **Battery chemistry** : Détermine la valeur intrinsèque pour le recyclage (ex: NMC vs LFP) et les risques de sécurité.
-*   **Battery mass** : Impact logistique.
-*   **Dismantling information** : Booléen (Disponibilité de manuels). Critique pour le *Remanufacturing*.
+### A. Les Facteurs Bloquants (Sécurité & Veto)
+Ces critères peuvent forcer le Recyclage immédiat pour sécurité.
+* Défauts Critiques : Dommages physiques visibles (perforation, fuite, gonflement).
+* Historique d'Abus : Si la batterie a subi des températures extrêmes ou des accidents majeurs.
 
-### B. État de Santé & Performance (Facteurs dynamiques)
-*   **Rated capacity** (Capacité nominale d'origine).
-*   **Remaining capacity** (Capacité actuelle mesurée).
-    *   *Usage* : Calcul du **SOH (State of Health)** = `Remaining / Rated`.
-*   **Internal resistance increase** : Indicateur de vieillissement de puissance. Si élevé = chauffe = inapte au *Reuse*.
-*   **Cycle-life reference test** & **Number of cycles** : Permet d'estimer le **RUL (Remaining Useful Life)**.
+### B. Les Facteurs de Viabilité (État de Santé)
+Ces critères déterminent le score pour Reuse ou Repurpose.
+* SOH (State of Health) : Le ratio Capacité Restante / Capacité Initiale. C'est le juge de paix (ex: >90% = Reuse).
+* Résistance Interne : Si elle est trop élevée, la batterie chauffe et est inapte à la réutilisation véhicule, mais OK pour le stockage stationnaire.
 
-### C. Sécurité & Historique (Facteurs de Veto)
-*   **Information on accidents** : Indicateur binaire.
-*   **Number of deep discharge events** : Dommages irréversibles potentiels.
-*   **Temperature information** (Time spent in extreme temperatures) : Indicateur d'abus thermique.
+### C. Les Facteurs Économiques & Techniques (Passport)
+Ces critères favorisent le Remanufacturing ou le Recyclage.
+* Facilité de Démontage : Si le fabricant fournit les manuels et que le design est modulaire, le score Remanufacture augmente.
+* Chimie (ex: NMC vs LFP) : Influence la valeur de revente des matériaux pour le Recyclage.
 
 ---
 
@@ -51,41 +49,56 @@ Nous nous basons sur le schéma du model neo4j mais nous l'enrichissons pour inc
 
 Chaque option (Reuse, Remanufacture, Repurpose, Recycle) reçoit une note basée sur des critères pondérés.
 
----
-
-## 5. Modèle de Données (Neo4j)
-
-Nous stockons désormais le détail des scores dans le nœud de décision pour expliquer pourquoi une option a gagné.
-
 ### Nœuds
-*   `Battery`: l'objet physique
-*   `BatteryPassport`: les données brutes importées
-*   `Decision` : Stocke les 4 scores et le gagnant.
+*   `Battery` : L'objet physique (ID unique).
+*   `BatteryPassport` : Les données constructeur (Chimie, Capacité nominale, Design).
+*   `SortingDiagnosis` : Les données relevées au centre de tri (SOH réel, Défauts visuels).
+*   `MarketConfig` : La configuration du marché au moment T.
+*   `Decision` : Le résultat calculé.
 
 ### Relations
 *   `(:Battery)-[:HAS_PASSPORT]->(:BatteryPassport)`
-*   `(:Battery)-[:EVALUATED_AS]->(:Decision)`
-
-### Propriétés du nœud Decision
-```JSON
-{
-    id: randomUUID(),
-    timestamp: datetime(),
-    // 1. Le résultat final
-    recommendation: "REPURPOSE",
-    // 2. Le scorecard complet
-    score_reuse: 15.5,
-    score_remanufacture: 65.0,
-    score_repurpose: 82.4,
-    score_recycle: 40.0,
-    // 3. Snapshot des données utilisées
-    input_soh_used: 0.78,
-    input_cycles_used: 450
-}
-```
+*   `(:Battery)-[:UNDERWENT_DIAGNOSIS]->(:SortingDiagnosis)`
+*   `(:SortingDiagnosis)-[:GENERATED_DECISION]->(:Decision)`
+*   `(:Decision)-[:CONTEXTUALIZED_BY]->(:MarketConfig)`
 
 --- 
 
-## 6. L'algorithme de décision
+## 5. L'algorithme de décision
 
-L'algorithme calcule un score pour chaque option. L'option avec le score le plus élevé l'emporte.
+L'algorithme ne doit pas être une "boîte noire" (comme un réseau de neurones profond), car le Centre de Tri doit pouvoir justifier sa décision (réglementation EU Battery Regulation).
+
+Nous utilisons une approche par Scorecard (Carte de Score). Chaque batterie reçoit 4 scores (un par voie de valorisation). Le score le plus élevé l'emporte sauf si un Veto de Sécurité est déclenché.
+
+### Les Règles de Calcul (Matrice de Décision)
+Nous définissons des seuils et des poids.
+
+* SOH (State of Health) : 0 à 100%.
+* Defects (Défauts) : None, Minor (réparable), Critical (dangereux).
+* Disassembly : Boolean.
+* Market Priority : Multiplicateur (ex: 1.0 = normal, 1.2 = forte demande).
+
+### 1. Calcul du Score de Base (Technique)
+* Option A : REUSE (Réutilisation directe - ex: EV to EV)
+    * Critère idéal : SOH > 90%, Pas de défauts.
+    * Formule : Score = (SOH * 100) - (Age_Penalty)
+    * Pénalité : Si Defects != None → Score = 0 (Veto).
+
+* Option B : REMANUFACTURE (Réparation/Remplacement modules)
+    * Critère idéal : SOH > 80%, Défauts mineurs acceptables, Démontable.
+    * Formule : Score = (SOH * 90) + (DesignForDisassembly ? 20 : 0)
+    * Pénalité : Si Defects == Critical → Score = 0.
+
+* Option C : REPURPOSE (Seconde vie - ex: Stockage stationnaire)
+    * Critère idéal : SOH entre 60% et 85%, Sécurité OK.
+    * Formule : Score = (SOH * 80) + (CycleLifeRemaining * Factor)
+    * Note : C'est souvent la "poubelle de luxe" pour ce qui n'est pas assez bon pour l'EV mais trop bon pour le broyeur.
+
+* Option D : RECYCLE (Extraction matières)
+    * Critère idéal : SOH < 60%, ou Défauts Critiques, ou Chimie précieuse (NMC).
+    * Formule : Score = (100 - SOH) + (CriticalDefect ? 100 : 0)
+    * Priorité : Si Safety == Danger → RECYCLE devient automatiquement le gagnant (Force Veto).
+
+### 2. Application du "Market Factor" (Demande Marché)
+Chaque score est multiplié par un facteur de configuration du centre de tri.
+Exemple : Si on a besoin de stockage d'urgence, Market_Repurpose_Weight = 1.3.
