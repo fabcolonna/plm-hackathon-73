@@ -1,40 +1,54 @@
 import os
 from dotenv import load_dotenv
 from src.database.repository import BatteryRepository
+from src.engine.decision import DecisionEngine
 
-# 1. Charger les variables d'environnement depuis le fichier .env
 load_dotenv()
 
-def run_sorting_process(qr_code_id):
-    # Récupération des secrets
+def run_sorting_process(bat_id, market_id):
+    # Connexion à la base de données Neo4j
     uri = os.getenv("NEO4J_URI")
     user = os.getenv("NEO4J_USER")
     password = os.getenv("NEO4J_DB_PASSWORD")
     db_name = os.getenv("NEO4J_DB_NAME")
 
-    print(f"🔌 Connexion à la base de données : {db_name}...")
-
-    # Initialisation du Repository avec la base spécifique
+    print(f"🔌 Connexion à {db_name}...")
     repo = BatteryRepository(uri, user, password, database_name=db_name)
+    engine = DecisionEngine()
+    
+    # Simulation de scan de 4 batteries différentes
+    #batteries = ["BAT_001", "BAT_002", "BAT_003", "BAT_004"]
+    #market_id = "MKT_STD_2024" # Marché standard
+
+    print(f"\n🚀 Lancement du diagnostic (Market: {market_id})")
+    print("=" * 60)
 
     try:
-        # Simulation du processus
-        market_context = "MKT_STD_2024"
-        print(f"🔎 Recherche du Digital Twin pour : {qr_code_id}")
-        
-        data = repo.get_digital_twin(qr_code_id, market_context)
+        #for bat_id in batteries:
+        # Récupération des données
+        data = repo.get_digital_twin(bat_id, market_id)
+        if not data:
+            print(f"⚠️ {bat_id}: Introuvable.")
+            #continue
 
-        if data:
-            print(f"✅ Données reçues. SOH: {data['diagnosis']['soh_percent']}%")
-            # C'est ici qu'on appellera bientôt l'algorithme de décision
-        else:
-            print("⚠️ Batterie inconnue ou données incomplètes.")
+        # Exécution Algorithme
+        result = engine.evaluate_battery(data)
+        rec = result['recommendation']
+        
+        # Affichage Console
+        print(f"🔋 ID: {bat_id} | SOH: {data['diagnosis']['soh_percent']}%")
+        print(f"   🎯 Décision: {rec.upper()}")
+        print(f"   📊 Scores: {result['scores']}")
+        
+        # Sauvegarde en Base
+        decision_id = repo.save_decision(bat_id, result, market_id)
+        print(f"   💾 Sauvegardé dans Neo4j (Decision ID: {decision_id})")
+        print("-" * 60)
 
     except Exception as e:
-        print(f"❌ Erreur critique : {e}")
+        print(f"❌ Erreur: {e}")
     finally:
         repo.close()
 
 if __name__ == "__main__":
-    # Test avec une des batteries créées précédemment
-    run_sorting_process("BAT_001")
+    run_sorting_process(bat_id="BAT_001", market_id="MKT_STD_2024")
