@@ -34,9 +34,12 @@ def run_sorting_process(bat_id, market_id):
         result = engine.evaluate_battery(data)
         rec = result['recommendation']
         
-        print(f"🔋 ID: {bat_id} | SOH: {data['diagnosis']['soh_percent']}%")
+        # Récupération du SOH pour affichage (peut être dans diagnosis ou passport)
+        soh = data.get('diagnosis', {}).get('soh_percent') or data.get('passport', {}).get('soh_percent') or 0
+        print(f"🔋 ID: {bat_id} | SOH: {soh}%")
         print(f"   🎯 Décision: {rec.upper()}")
         print(f"   📊 Scores: {result['scores']}")
+        print(f"   💡 Raison: {result.get('reason', 'N/A')}")
         
         # Sauvegarde en Base
         decision_id = repo.save_decision(bat_id, result, market_id)
