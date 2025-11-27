@@ -7,10 +7,10 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthProvider.tsx";
 import BatteryStatusPage from "./pages/BatteryStatus.tsx";
 import BatteryRecommendationsPage from "./pages/BatteryRecommendations.tsx";
-import HomePage from "./pages/base/home.tsx";
 import LoginPage from "./pages/base/Login.tsx";
 import NotFoundPage from "./pages/base/NotFound.tsx";
 import BatteryInfoPage from "./pages/BatteryInfo.tsx";
+import HomePage from "./pages/base/Home.tsx";
 
 const router = createBrowserRouter([
   {
