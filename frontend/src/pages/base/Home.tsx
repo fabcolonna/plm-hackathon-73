@@ -16,60 +16,6 @@ const recommendationLikelihoods = [
   },
 ] as const;
 
-const featureCards = [
-  {
-    title: "Status",
-    description:
-      "Get the real-time health status of your battery packs based on workshop diagnostics.",
-    icon: (
-      <svg
-        className="h-10 w-10 text-sky-300"
-        viewBox="0 0 32 32"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      >
-        <rect x="6" y="6" width="20" height="20" rx="4" />
-        <path d="M16 11v10M11 16h10" />
-      </svg>
-    ),
-  },
-  {
-    title: "Recommendations",
-    description:
-      "Get tailored recycling and reuse recommendations based on battery health and traceability data.",
-    icon: (
-      <svg
-        className="h-10 w-10 text-emerald-300"
-        viewBox="0 0 32 32"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      >
-        <path d="M6 10h20l-3 12H9z" />
-        <path d="M12 13l4 4 4-4" />
-      </svg>
-    ),
-  },
-  {
-    title: "Mechanic Infos",
-    description:
-      "Access detailed battery pack information to assist in diagnostics and maintenance tasks.",
-    icon: (
-      <svg
-        className="h-10 w-10 text-indigo-300"
-        viewBox="0 0 32 32"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      >
-        <path d="M10 7h12v18H10z" />
-        <path d="M13 11h6M13 16h6M13 21h6" />
-      </svg>
-    ),
-  },
-] as const;
-
 const DecisionMatrixView = () => (
   <div className="relative rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 to-slate-950 p-8">
     <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_top,_rgba(94,234,212,0.15),_transparent_55%)]" />
@@ -163,30 +109,6 @@ export default function HomePage() {
           </div>
           <DecisionMatrixView />
         </div>
-      </div>
-
-      <div className="mt-10 grid gap-6 md:grid-cols-3">
-        {featureCards.map((card) => (
-          <article
-            key={card.title}
-            className="rounded-2xl border border-slate-900 bg-slate-950/60 p-6"
-          >
-            <div className="flex items-center gap-4">
-              <div className="rounded-2xl border border-slate-800/80 bg-slate-900/70 p-3">
-                {card.icon}
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-                  Feature
-                </p>
-                <h2 className="text-lg font-semibold text-white">
-                  {card.title}
-                </h2>
-              </div>
-            </div>
-            <p className="mt-4 text-sm text-slate-400">{card.description}</p>
-          </article>
-        ))}
       </div>
     </section>
   );
