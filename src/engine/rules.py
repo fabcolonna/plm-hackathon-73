@@ -10,9 +10,9 @@ class BusinessRules:
     CRITICAL_DEFECTS_ALLOWED = False
     
     # --- SEUILS SOH (State of Health) ---
-    MIN_SOH_FOR_REUSE = 90.0          # Comme neuf
-    MIN_SOH_FOR_REMANUFACTURE = 85.0  # Réparable
-    MIN_SOH_FOR_REPURPOSE = 60.0      # OK pour stockage stationnaire
+    MIN_SOH_FOR_REUSE = 80.0          # Comme neuf
+    MIN_SOH_FOR_REMANUFACTURE = 70.0  # Réparable
+    MIN_SOH_FOR_REPURPOSE = 50.0      # OK pour stockage stationnaire
     
     # --- SEUILS TECHNIQUES ---
     MAX_RESISTANCE_FOR_REUSE = 30     # mOhm (Au-dessus, ça chauffe trop pour un VE)
