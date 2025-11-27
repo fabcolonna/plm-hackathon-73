@@ -5,6 +5,8 @@ class DecisionEngine:
     def __init__(self):
         self.rules = BusinessRules()
 
+    # batterie model, accident cases
+
     def evaluate_battery(self, digital_twin):
         diag = digital_twin['diagnosis']
         passport = digital_twin['passport']
@@ -18,10 +20,16 @@ class DecisionEngine:
         scores = {"Reuse": 0, "Remanufacture": 0, "Repurpose": 0, "Recycle": 20}
         
         soh = diag['soh_percent']
-        if soh >= self.rules.MIN_SOH_FOR_REUSE: scores["Reuse"] += 50
-        if soh >= self.rules.MIN_SOH_FOR_REMANUFACTURE: scores["Remanufacture"] += 40
-        if soh >= self.rules.MIN_SOH_FOR_REPURPOSE: scores["Repurpose"] += 60
-        else: scores["Recycle"] += 50
+        if soh >= self.rules.MIN_SOH_FOR_REUSE: 
+            scores["Reuse"] += soh * self.rules.WEIGHTS_SOH["Reuse"]
+
+        if soh >= self.rules.MIN_SOH_FOR_REMANUFACTURE: 
+            scores["Remanufacture"] += soh * self.rules.WEIGHTS_SOH["Remanufacture"]
+
+        if soh >= self.rules.MIN_SOH_FOR_REPURPOSE: 
+            scores["Repurpose"] += soh * self.rules.WEIGHTS_SOH["Repurpose"]
+        else: 
+            scores["Recycle"] += 50
 
         if diag['internal_resistance_mOhm'] < self.rules.MAX_RESISTANCE_FOR_REUSE:
             scores["Reuse"] += 30
