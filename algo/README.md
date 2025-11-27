@@ -23,22 +23,33 @@ Le processus de décision suit une approche linéaire déclenchée par l'arrivé
 
 ## 3. Liste des Paramètres d'Entrée Sélectionnés
 
-Parmi la centaine d'attributs du Battery Passport, nous avons garder que les 6 indicateurs qui impactent directement l'algorithme de tri.
+L'algorithme utilise **12 attributs critiques** du Battery Passport qui impactent directement la décision de tri.
 
 ### A. Les Facteurs Bloquants (Sécurité & Veto)
 Ces critères peuvent forcer le Recyclage immédiat pour sécurité.
-* Défauts Critiques : Dommages physiques visibles (perforation, fuite, gonflement).
-* Historique d'Abus : Si la batterie a subi des températures extrêmes ou des accidents majeurs.
+* **Attribute #3:** Défauts Critiques (Known defects or malfunctions) : Dommages physiques visibles (perforation, fuite, gonflement).
+* **Attribute #11:** Historique d'Abus (Informations on accidents) : Si la batterie a subi des températures extrêmes ou des accidents majeurs.
 
 ### B. Les Facteurs de Viabilité (État de Santé)
 Ces critères déterminent le score pour Reuse ou Repurpose.
-* SOH (State of Health) : Le ratio Capacité Restante / Capacité Initiale. C'est le juge de paix (ex: >90% = Reuse).
+* **Attribute #1:** SOH (State of Health) : Le ratio Capacité Restante / Capacité Initiale. CRITICAL - C'est le juge de paix (ex: ≥90% = Reuse, ≥60% = Repurpose).
+* **Attribute #2:** SOC (State of Charge) : État de charge actuel, utilisé pour la sécurité de manipulation.
+* **Attribute #7:** Total Energy Throughput : Historique d'utilisation (stress subi). Valide le SOH.
+* **Attribute #10:** Capacity Fade : Taux de dégradation (%/an). Une dégradation rapide disqualifie pour le Reuse long terme.
 * Résistance Interne : Si elle est trop élevée, la batterie chauffe et est inapte à la réutilisation véhicule, mais OK pour le stockage stationnaire.
 
 ### C. Les Facteurs Économiques & Techniques (Passport)
 Ces critères favorisent le Remanufacturing ou le Recyclage.
-* Facilité de Démontage : Si le fabricant fournit les manuels et que le design est modulaire, le score Remanufacture augmente.
-* Chimie (ex: NMC vs LFP) : Influence la valeur de revente des matériaux pour le Recyclage.
+* **Attribute #4:** Battery Model : Détermine le design et le marché (e-bike vs. Industrial).
+* **Attribute #5:** Battery Chemistry : CRITICAL - Détermine la méthode de recyclage et la sécurité (NMC = valeur recyclage élevée, LFP = stable pour stockage).
+* **Attribute #6:** Date of Placing on Market : L'âge combiné avec le SOH indique la fiabilité et le cycle de vie restant.
+* **Attribute #8:** Potentials for Repurposing/Remanufacturing : Intention du fabricant - si la batterie est conçue pour la réutilisation, la décision est facilitée.
+* **Attribute #9:** Design for Disassembly : Si le fabricant fournit les manuels et que le design est modulaire, le score Remanufacture augmente.
+
+### D. Les Facteurs de Statut
+* **Attribute #12:** Battery Status : Statut actuel ('original', 'repurposed', 're-used', 'remanufactured', 'waste'). Influence la décision finale.
+
+> **Note:** Voir `NEO4J_SCHEMA.md` pour le schéma complet de la base de données avec tous les attributs.
 
 ---
 
@@ -71,42 +82,40 @@ L'algorithme ne doit pas être une "boîte noire" (comme un réseau de neurones 
 Nous utilisons une approche par Scorecard (Carte de Score). Chaque batterie reçoit 4 scores (un par voie de valorisation). Le score le plus élevé l'emporte sauf si un Veto de Sécurité est déclenché.
 
 ### Les Règles de Calcul (Matrice de Décision)
-L'algorithme `src/engine/decision.py` croise les données techniques du Passeport (Chimie, Modularité) avec l'état réel du Diagnostic (Résistance, Défauts) et les besoins du Marché.
+L'algorithme `src/engine/decision.py` croise les données techniques du Passeport (tous les 12 attributs) avec l'état réel du Diagnostic et les besoins du Marché.
 
-Le processus se déroule en 3 étapes :
+Le processus se déroule en 7 étapes :
 
-1. Le "Kill Switch"
-Avant tout calcul, l'algorithme vérifie la sécurité.
-Si Critical Defects (perforation, gonflement) OU History of Abuse est VRAI alors **DÉCISION IMMÉDIATE : RECYCLE**.
-Tous les autres scores sont mis à 0. La sécurité n'est pas négociable.
+1. **Le "Kill Switch"**
+   Avant tout calcul, l'algorithme vérifie la sécurité.
+   Si **Attribute #3** (Critical Defects) OU **Attribute #11** (Accidents/History of Abuse) est VRAI alors **DÉCISION IMMÉDIATE : RECYCLE**.
+   Tous les autres scores sont mis à 0. La sécurité n'est pas négociable.
 
-2. La "Scorecard"
-Si la batterie est sûre, chaque option démarre à 0 (sauf Recycle qui a une base de 20pts) et accumule des points selon des critères précis :
+2. **Initialisation de la Scorecard**
+   Si la batterie est sûre, chaque option démarre à 0 (sauf Recycle qui a une base de 20pts).
 
-* Option A : REUSE (Réutilisation directe)
-    * Cible : Batterie "comme neuve".
-    * +50 pts si SOH ≥ 90% (Seuil configurable dans rules.py).
-    * +30 pts si Résistance Interne < 30 mOhm (Indicateur de chauffe).
-    * Pénalité : Score faible si la résistance est trop haute, même avec un bon SOH.
+3. **Attributs Performance & Durability**
+   * **Attribute #1 (SOH):** Score principal selon seuils (≥90% Reuse, ≥85% Remanufacture, ≥60% Repurpose)
+   * **Attribute #2 (SOC):** Vérification sécurité manipulation
+   * **Attribute #7 (Energy Throughput):** Usage intensif favorise Remanufacture/Recycle
+   * **Attribute #10 (Capacity Fade):** Dégradation rapide disqualifie Reuse, favorise Repurpose/Recycle
 
-* Option B : REMANUFACTURE (Réparation)
-    * Cible : Batterie saine mais nécessitant une intervention.
-    * +40 pts si SOH ≥ 85%.
-    * +0 à 50 pts selon le Design Modularity Score (Donnée Passeport).
-    * Logique : On ne recommande pas la réparation si la batterie est soudée et impossible à démonter (Modularité faible).
+4. **Attributs Circularity**
+   * **Attribute #8 (Repurposing/Remanufacturing Potential):** Intention fabricant (+30 pts Repurpose, +25 pts Remanufacture)
+   * **Attribute #9 (Design for Disassembly):** Modularité favorise Remanufacture (+50 pts max)
 
-* Option C : REPURPOSE (Seconde vie - ex: Stockage)
-    * Cible : Batterie fatiguée pour la mobilité mais stable.
-    * +60 pts si SOH ≥ 60% (Le stockage stationnaire est moins exigeant).
-    * +20 pts si Chimie = LFP (Très stable, idéale pour le stockage domestique).
+5. **Attributs Identifiers & Materials**
+   * **Attribute #4 (Battery Model):** Catégorie (e-bike, automotive, industrial) influence les scores
+   * **Attribute #5 (Chemistry):** CRITICAL - NMC (+40 Recycle), LFP (+20 Repurpose)
+   * **Attribute #6 (Market Date):** Âge influence la décision (récent = Reuse, ancien = Recycle)
+   * **Attribute #12 (Battery Status):** Statut actuel influence les scores
 
-* Option D : RECYCLE (Extraction matières)
-    * Cible : Batterie en fin de vie ou matériaux précieux.
-    * Base : 20 pts (Toujours une option possible).
-    * +50 pts si SOH < 60% (Trop usée pour le reste).
-    * +40 pts si Chimie = NMC (Haute valeur du Nickel/Cobalt à la revente).
+6. **Résistance Interne** (mesurée au diagnostic)
+   * Résistance < 30 mOhm : +30 pts Reuse
 
-3. L'Ajustement Marché
-Le score technique brut est ensuite multiplié par le coefficient du marché actuel (stocké dans Neo4j `MarketConfig`).
+7. **L'Ajustement Marché**
+   Le score technique brut est ensuite multiplié par le coefficient du marché actuel (stocké dans Neo4j `MarketConfig`).
 
-Formule Finale : **`Score_Final = Score_Technique x Market_Weight`**
+**Formule Finale :** `Score_Final = Score_Technique x Market_Weight`
+
+> **Configuration:** Tous les seuils et poids sont configurables dans `src/engine/rules.py`
