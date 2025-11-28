@@ -10,6 +10,8 @@ import {
   getPendingStatusRequest,
   type PendingStatusRequest,
 } from "../lib/pendingStatus";
+import { useQrScanner } from "../hooks/useQrScanner";
+import { QrScannerOverlay } from "../components/QrScannerOverlay";
 
 const STATUS_LABELS: Record<BatteryLifecycleStatus, string> = {
   original: "Original",
@@ -85,6 +87,8 @@ export default function BatteryStatusPage() {
   const [isConfirmingStatus, setIsConfirmingStatus] = useState(false);
   const [pendingRequest, setPendingRequest] =
     useState<PendingStatusRequest | null>(null);
+  const { activeScanner, startScan, closeScanner, videoRef, scanError } =
+    useQrScanner();
 
   const lifecycleStatus: BatteryLifecycleStatus | null =
     statusData?.status ?? null;
@@ -215,14 +219,42 @@ export default function BatteryStatusPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
               <label className="flex-1 text-sm font-semibold text-slate-200">
                 Battery Passport ID
-                <input
-                  value={batteryId}
-                  onChange={(event) =>
-                    setBatteryId(event.target.value.toUpperCase())
-                  }
-                  className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white placeholder:text-slate-600 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
-                  placeholder="BP-XXXX"
-                />
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    value={batteryId}
+                    onChange={(event) =>
+                      setBatteryId(event.target.value.toUpperCase())
+                    }
+                    className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white placeholder:text-slate-600 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+                    placeholder="BP-XXXX"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      startScan({
+                        label: "Battery",
+                        onResult: (value) => setBatteryId(value.toUpperCase()),
+                      })
+                    }
+                    className="inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-900/70 p-2 text-slate-200 transition hover:border-sky-500 hover:text-sky-200"
+                    aria-label="Scan Battery ID QR code"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M4 5h4M5 4v4M16 4h4M19 4v4M4 19h4M5 16v4M16 19h4M19 16v4M10 9h4v6h-4zM15 12h1M8 12H7"
+                      />
+                    </svg>
+                  </button>
+                </div>
               </label>
               <div className="flex w-full gap-2 sm:w-auto">
                 <button
@@ -343,6 +375,12 @@ export default function BatteryStatusPage() {
           </div>
         </div>
       </div>
+      <QrScannerOverlay
+        activeScanner={activeScanner}
+        videoRef={videoRef}
+        scanError={scanError}
+        onClose={closeScanner}
+      />
     </section>
   );
 }
