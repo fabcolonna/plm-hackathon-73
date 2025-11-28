@@ -1,115 +1,173 @@
-const RECOMMENDATION_STATES = [
-  {
-    label: "Recycle",
-    score: 0.64,
-    headline: "Most energy efficient outcome",
-    summary:
-      "High contamination risk and steady capacity fade point towards safe-material recovery.",
-    accent: "from-rose-500/20 via-rose-500/5 to-transparent border-rose-400/40",
-    signals: [
-      "Voltage instability detected during load surge",
-      "Chemistry lineage fully traceable",
-      "Recycler line has capacity this week",
-    ],
-    nextSteps: [
-      "Book shredding slot at Plant 7",
-      "Push passport + teardown photos",
-    ],
-  },
-  {
-    label: "Reuse",
-    score: 0.52,
-    headline: "Viable for low-demand loops",
-    summary:
-      "Electrolyte window intact and thermal history remains stable for secondary markets.",
-    accent: "from-sky-500/20 via-sky-500/5 to-transparent border-sky-400/40",
-    signals: ["SoC drift < 3% on last audit", "PCR documentation uploaded"],
-    nextSteps: ["Match with refurb partner", "Queue extended soak test"],
-  },
-  {
-    label: "Remanufacture",
-    score: 0.21,
-    headline: "Module refresh recommended",
-    summary:
-      "Cell variance moderate; a module swap would unlock another 18 months of duty.",
-    accent:
-      "from-emerald-500/20 via-emerald-500/5 to-transparent border-emerald-400/40",
-    signals: ["Seal integrity intact", "Power electronics passed continuity"],
-    nextSteps: ["Pull bill of materials", "Issue work order to reman floor"],
-  },
-  {
-    label: "Repurpose",
-    score: 0.33,
-    headline: "Great candidate for stationary storage",
-    summary:
-      "Thermal swings already within microgrid tolerances—minimal prep required.",
-    accent:
-      "from-indigo-500/20 via-indigo-500/5 to-transparent border-indigo-400/40",
-    signals: [
-      "Comms interface still responsive",
-      "Enclosure corrosion minimal",
-    ],
-    nextSteps: ["Share telemetry pack with grid ops", "Quote logistics"],
-  },
-] as const;
+import { useCallback, useMemo, useState } from "react";
+import type { FormEvent } from "react";
+import {
+  evaluateBatteryForRecycler,
+  type RecyclerEvaluationResponse,
+} from "../lib/api";
 
-const meta = {
-  jobId: "JOB-47F92",
-  lastSync: "11:42 CET · 10 minutes ago",
-  modelVersion: "v0.8.3-alpha",
-  dataset: "RecyclerOps-CycleYear4",
+type RecommendationLabel = "Recycle" | "Reuse" | "Remanufacture" | "Repurpose";
+
+const DEFAULT_BATTERY_ID = "BATTERY_12345";
+const DEFAULT_MARKET_ID = "MKT_STD_2024";
+
+const ORDERED_LABELS: RecommendationLabel[] = [
+  "Recycle",
+  "Reuse",
+  "Remanufacture",
+  "Repurpose",
+];
+
+const CARD_ACCENTS: Record<RecommendationLabel, string> = {
+  Recycle: "from-rose-500/20 via-rose-500/5 to-transparent border-rose-400/40",
+  Reuse: "from-sky-500/20 via-sky-500/5 to-transparent border-sky-400/40",
+  Remanufacture:
+    "from-emerald-500/20 via-emerald-500/5 to-transparent border-emerald-400/40",
+  Repurpose:
+    "from-indigo-500/20 via-indigo-500/5 to-transparent border-indigo-400/40",
 };
 
-const formatScore = (value: number) => `${Math.round(value * 100)}%`;
+const toPercentNumber = (value: number) => {
+  if (!Number.isFinite(value)) return 0;
+  return value > 1 ? value : value * 100;
+};
+
+const formatScore = (value: number) => {
+  const percent = toPercentNumber(value);
+  return `${Math.round(percent)}%`;
+};
 
 export default function BatteryRecommendationPage() {
+  const [batteryId, setBatteryId] = useState(DEFAULT_BATTERY_ID);
+  const [marketId, setMarketId] = useState(DEFAULT_MARKET_ID);
+  const [scores, setScores] = useState<RecyclerEvaluationResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const runEvaluation = useCallback(async (id: string, market: string) => {
+    const trimmedId = id.trim();
+    const trimmedMarket = market.trim() || DEFAULT_MARKET_ID;
+
+    if (!trimmedId) {
+      setError("Battery ID is required");
+      setScores(null);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const response = await evaluateBatteryForRecycler({
+        id: trimmedId,
+        market_id: trimmedMarket,
+      });
+      setScores(response);
+    } catch (requestError) {
+      const message =
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to evaluate battery";
+      setError(message);
+      setScores(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void runEvaluation(batteryId, marketId);
+  };
+
+  const recommendationCards = useMemo(
+    () =>
+      ORDERED_LABELS.map((label) => ({
+        label,
+        score:
+          typeof scores?.[label] === "number" ? scores[label] ?? null : null,
+      })),
+    [scores]
+  );
+
+  const rankedCards = useMemo(
+    () =>
+      recommendationCards
+        .filter(
+          (card): card is { label: RecommendationLabel; score: number } =>
+            typeof card.score === "number"
+        )
+        .sort((a, b) => b.score - a.score),
+    [recommendationCards]
+  );
+
+  const topCard = rankedCards[0];
+  const secondCard = rankedCards[1];
+  const confidenceBand =
+    topCard && secondCard
+      ? Math.max(
+          1,
+          Math.round(
+            Math.abs(
+              toPercentNumber(topCard.score ?? 0) -
+                toPercentNumber(secondCard.score ?? 0)
+            ) / 2
+          )
+        )
+      : 4;
+
+  const outcomeText = topCard
+    ? `${topCard.label} ranked #1 · ${formatScore(topCard.score)}`
+    : "Run an evaluation to rank outcomes.";
+
   return (
     <section className="rounded-3xl border border-slate-900 bg-slate-950/80 p-8 text-white shadow-inner shadow-black/40 space-y-8">
       <header className="space-y-3 text-left">
-        <p className="text-xs uppercase tracking-[0.35em] text-sky-300">
-          Protected · Recycler
-        </p>
         <h1 className="text-4xl font-semibold leading-tight">
           Battery recommendations
         </h1>
         <p className="text-base text-slate-300 max-w-3xl">
-          Four-path decision surface generated from the latest python model run.
-          Prioritize the highest score but review the supporting signals before
-          locking the batch.
+          Four-path decision surface generated from the latest Python model run.
         </p>
       </header>
 
-      <section className="grid gap-4 rounded-2xl border border-slate-900 bg-slate-950/70 p-6 text-sm text-slate-300 sm:grid-cols-2 lg:grid-cols-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-            Job ID
+      <section className="grid gap-4 rounded-2xl border border-slate-900 bg-slate-950/70 p-6 text-sm text-slate-300">
+        <form
+          onSubmit={handleSubmit}
+          className="flex flex-col gap-4 sm:flex-row sm:items-end"
+        >
+          <label className="flex-1 text-sm font-semibold text-slate-200">
+            Battery ID
+            <input
+              value={batteryId}
+              onChange={(event) => setBatteryId(event.target.value)}
+              className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white placeholder:text-slate-600 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+              placeholder="BATTERY_12345"
+            />
+          </label>
+          <label className="flex-1 text-sm font-semibold text-slate-200">
+            Market ID
+            <input
+              value={marketId}
+              onChange={(event) => setMarketId(event.target.value)}
+              className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white placeholder:text-slate-600 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+              placeholder="MKT_STD_2024"
+            />
+          </label>
+          <div className="flex w-full gap-2 sm:w-auto">
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="flex-1 rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20 disabled:opacity-40 sm:flex-none sm:min-w-[150px]"
+            >
+              {isLoading ? "Evaluating…" : "Run evaluation"}
+            </button>
+          </div>
+        </form>
+        {error && (
+          <p className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+            {error}
           </p>
-          <p className="mt-1 text-lg font-semibold text-white">{meta.jobId}</p>
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-            Model version
-          </p>
-          <p className="mt-1 text-lg font-semibold text-white">
-            {meta.modelVersion}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-            Dataset
-          </p>
-          <p className="mt-1 text-lg font-semibold text-white">
-            {meta.dataset}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-            Last sync
-          </p>
-          <p className="mt-1 text-lg font-semibold text-white">
-            {meta.lastSync}
-          </p>
-        </div>
+        )}
       </section>
 
       <section className="space-y-6">
@@ -118,20 +176,20 @@ export default function BatteryRecommendationPage() {
             <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
               Model outcome
             </p>
-            <p className="text-2xl font-semibold text-white">
-              Recycle ranked #1 · {formatScore(RECOMMENDATION_STATES[0].score)}
-            </p>
+            <p className="text-2xl font-semibold text-white">{outcomeText}</p>
           </div>
           <span className="rounded-full border border-slate-700 px-4 py-1 text-xs font-semibold uppercase tracking-[0.4em] text-slate-300">
-            Confidence band ±4%
+            {scores ? `Confidence band ±${confidenceBand}%` : "Awaiting run"}
           </span>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          {RECOMMENDATION_STATES.map((state) => (
+          {recommendationCards.map((state) => (
             <article
               key={state.label}
-              className={`rounded-2xl border bg-gradient-to-br ${state.accent} p-6 shadow-lg shadow-black/20`}
+              className={`rounded-2xl border bg-gradient-to-br ${
+                CARD_ACCENTS[state.label]
+              } p-6 shadow-lg shadow-black/20`}
             >
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
@@ -139,93 +197,42 @@ export default function BatteryRecommendationPage() {
                     {state.label}
                   </p>
                   <p className="text-2xl font-semibold text-white">
-                    {state.headline}
+                    {state.score !== null
+                      ? `${formatScore(state.score)} likelihood`
+                      : "Awaiting backend score"}
                   </p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-slate-400">Likelihood</p>
                   <p className="text-3xl font-semibold text-white">
-                    {formatScore(state.score)}
+                    {state.score !== null ? formatScore(state.score) : "—"}
                   </p>
                 </div>
               </div>
-
-              <p className="mt-4 text-sm text-slate-200">{state.summary}</p>
-
-              <div className="mt-5 grid gap-4 md:grid-cols-2">
-                <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-slate-200">
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                    Signals
+              {state.score !== null ? (
+                <div className="mt-5 space-y-2">
+                  <div className="h-3 rounded-full bg-white/10">
+                    <div
+                      className="h-3 rounded-full bg-white/80"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          Math.max(0, toPercentNumber(state.score))
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                  <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
+                    Raw score: {state.score.toFixed(1)}
                   </p>
-                  <ul className="mt-3 space-y-2">
-                    {state.signals.map((signal) => (
-                      <li key={signal} className="flex items-start gap-2">
-                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/60" />
-                        <span>{signal}</span>
-                      </li>
-                    ))}
-                  </ul>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-slate-200">
-                  <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                    Next actions
-                  </p>
-                  <ul className="mt-3 space-y-2">
-                    {state.nextSteps.map((step) => (
-                      <li key={step} className="flex items-start gap-2">
-                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-white/60" />
-                        <span>{step}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
+              ) : (
+                <p className="mt-5 text-sm text-slate-400">
+                  No score returned for this path yet.
+                </p>
+              )}
             </article>
           ))}
-        </div>
-      </section>
-
-      <section className="grid gap-6 rounded-2xl border border-slate-900 bg-slate-950/70 p-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="space-y-4">
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-            Decision guardrails
-          </p>
-          <p className="text-sm text-slate-300">
-            Data stays encrypted in transit. Once you confirm a path we push the
-            job token to the recycler ERP and lock the passport. Reversing a
-            choice requires auditor override.
-          </p>
-          <div className="rounded-2xl border border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-200">
-            <p className="text-xs uppercase tracking-[0.35em] text-slate-500">
-              Ready to commit?
-            </p>
-            <p className="mt-2 text-lg font-semibold text-white">
-              Confirm the recycle path to broadcast teardown instructions.
-            </p>
-          </div>
-        </div>
-        <div className="space-y-4">
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">
-            Traceability checklist
-          </p>
-          <ul className="space-y-3 text-sm text-slate-200">
-            {[
-              "Passport signature verified",
-              "Chain-of-custody QR scanned",
-              "Thermal history archived",
-              "EPR paperwork attached",
-            ].map((item) => (
-              <li
-                key={item}
-                className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3"
-              >
-                <span>{item}</span>
-                <span className="text-xs uppercase tracking-[0.3em] text-emerald-300">
-                  Ready
-                </span>
-              </li>
-            ))}
-          </ul>
         </div>
       </section>
     </section>
