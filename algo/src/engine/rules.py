@@ -61,8 +61,7 @@ class BusinessRules:
     
     # Battery Status (Attribute #12)
     STATUS_WEIGHTS = {
-        "original": {"Reuse": 10, "Remanufacture": 5},
-        "waste": {"Recycle": 50}  # Si déjà marqué waste, fortement orienté recyclage
+        "waste": {"Recycle": 50}
     }
     
     # Battery model (Attribute #4) - utilisé pour déterminer le marché cible

@@ -16,7 +16,7 @@ class BatteryRepository:
         Récupère les données depuis la base spécifique définie dans __init__
         Inclut tous les 12 attributs du Battery Passport.
         """
-        # C'est ICI qu'on spécifie la base de données cible (batterytest)
+        # C'est ICI qu'on spécifie la base de données cible (batterypass)
         with self.driver.session(database=self.database) as session:
             result = session.execute_read(self._fetch_data_query, battery_id, market_config_id)
             
