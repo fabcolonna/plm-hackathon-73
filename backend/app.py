@@ -1,52 +1,128 @@
+import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from evaluator import evaluate_function
+from dotenv import load_dotenv
+from src.database.repository import BatteryRepository
+from src.engine.decision import DecisionEngine
+
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for React frontend
 
-@app.route('/evaluate', methods=['POST'])
-def evaluate():
+# Initialize Neo4j connection
+NEO4J_URI = os.getenv("NEO4J_URI")
+NEO4J_USER = os.getenv("NEO4J_USER")
+NEO4J_PASSWORD = os.getenv("NEO4J_DB_PASSWORD")
+NEO4J_DB_NAME = os.getenv("NEO4J_DB_NAME", "neo4j")
+
+# Recycler endpoint - takes only an ID and runs the decision algorithm
+@app.route('/recycler/evaluate', methods=['POST'])
+def recycler_evaluate():
+    try:
+        data = request.get_json()
+        battery_id = data.get('id')
+        market_id = data.get('market_id', 'MKT_STD_2024')  # Default market config
+        
+        if not battery_id:
+            return jsonify({'error': 'Battery ID is required'}), 400
+        
+        # Connect to Neo4j
+        repo = BatteryRepository(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, database_name=NEO4J_DB_NAME)
+        engine = DecisionEngine()
+        
+        try:
+            # Get digital twin data
+            digital_twin = repo.get_digital_twin(battery_id, market_id)
+            
+            if not digital_twin:
+                return jsonify({'error': 'Battery not found'}), 404
+            
+            # Run decision algorithm
+            result = engine.evaluate_battery(digital_twin)
+            
+            # Save decision to database
+            decision_id = repo.save_decision(battery_id, result, market_id)
+            
+            # Return the scores (4 string-integer pairs)
+            return jsonify(result['scores']), 200
+            
+        finally:
+            repo.close()
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Garagist POST endpoint - push data to Neo4j
+@app.route('/garagist/battery', methods=['POST'])
+def garagist_create():
     try:
         data = request.get_json()
         
-        # Extract the 10 arguments
-        arg1 = data.get('arg1')
-        arg2 = data.get('arg2')
-        arg3 = data.get('arg3')
-        arg4 = data.get('arg4')
-        arg5 = data.get('arg5')
-        arg6 = data.get('arg6')
-        arg7 = data.get('arg7')
-        arg8 = data.get('arg8')
-        arg9 = data.get('arg9')
-        arg10 = data.get('arg10')
+        # Extract the 4 inputs for battery data
+        battery_id = data.get('battery_id')
+        voltage = data.get('voltage')
+        capacity = data.get('capacity')
+        temperature = data.get('temperature')
         
-        # Validate that all arguments are provided
-        if None in [arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10]:
+        # Validate required fields
+        if None in [battery_id, voltage, capacity, temperature]:
             return jsonify({
-                'error': 'All 10 arguments (arg1-arg10) are required'
+                'error': 'All fields are required: battery_id, voltage, capacity, temperature'
             }), 400
         
-        # Call the modular evaluation function
-        result = evaluate_function(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10)
+        repo = BatteryRepository(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, database_name=NEO4J_DB_NAME)
         
-        # Ensure result is a string
-        result_str = str(result) if result is not None else ""
-        
-        return jsonify({
-            'status': 'success',
-            'result': result_str
-        }), 200
+        try:
+            result = repo.create_battery_record(battery_id, voltage, capacity, temperature)
+            return jsonify(result), 201
+        finally:
+            repo.close()
         
     except Exception as e:
-        return jsonify({
-            'error': str(e)
-        }), 500
+        return jsonify({'error': str(e)}), 500
+
+# Garagist GET endpoint - read all battery information from Neo4j
+@app.route('/garagist/battery/<battery_id>', methods=['GET'])
+def garagist_read(battery_id):
+    try:
+        repo = BatteryRepository(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, database_name=NEO4J_DB_NAME)
+        
+        try:
+            result = repo.get_all_battery_data(battery_id)
+            
+            if not result:
+                return jsonify({'error': 'Battery not found'}), 404
+            
+            return jsonify(result), 200
+        finally:
+            repo.close()
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Proprietaire endpoint - get battery status
+@app.route('/proprietaire/status/<battery_id>', methods=['GET'])
+def proprietaire_status(battery_id):
+    try:
+        repo = BatteryRepository(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, database_name=NEO4J_DB_NAME)
+        
+        try:
+            result = repo.get_battery_status(battery_id)
+            
+            if not result:
+                return jsonify({'error': 'Battery not found'}), 404
+            
+            return jsonify(result), 200
+        finally:
+            repo.close()
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'healthy'}), 200
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5001)
