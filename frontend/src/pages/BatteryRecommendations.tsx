@@ -31,11 +31,6 @@ const toPercentNumber = (value: number) => {
   return value > 1 ? value : value * 100;
 };
 
-const formatScore = (value: number) => {
-  const percent = toPercentNumber(value);
-  return `${Math.round(percent)}%`;
-};
-
 export default function BatteryRecommendationPage() {
   const [batteryId, setBatteryId] = useState(DEFAULT_BATTERY_ID);
   const [marketId, setMarketId] = useState(DEFAULT_MARKET_ID);
@@ -116,7 +111,7 @@ export default function BatteryRecommendationPage() {
       : 4;
 
   const outcomeText = topCard
-    ? `${topCard.label} ranked #1 · ${formatScore(topCard.score)}`
+    ? `${topCard.label} ranked #1 = ${topCard.score.toFixed(1)}`
     : "Run an evaluation to rank outcomes.";
 
   return (
@@ -179,7 +174,7 @@ export default function BatteryRecommendationPage() {
             <p className="text-2xl font-semibold text-white">{outcomeText}</p>
           </div>
           <span className="rounded-full border border-slate-700 px-4 py-1 text-xs font-semibold uppercase tracking-[0.4em] text-slate-300">
-            {scores ? `Confidence band ±${confidenceBand}%` : "Awaiting run"}
+            {scores ? `Confidence band ±${confidenceBand}` : "Awaiting run"}
           </span>
         </div>
 
@@ -198,14 +193,8 @@ export default function BatteryRecommendationPage() {
                   </p>
                   <p className="text-2xl font-semibold text-white">
                     {state.score !== null
-                      ? `${formatScore(state.score)} likelihood`
+                      ? `Score ${state.score.toFixed(1)}`
                       : "Awaiting backend score"}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm text-slate-400">Likelihood</p>
-                  <p className="text-3xl font-semibold text-white">
-                    {state.score !== null ? formatScore(state.score) : "—"}
                   </p>
                 </div>
               </div>
@@ -222,9 +211,6 @@ export default function BatteryRecommendationPage() {
                       }}
                     />
                   </div>
-                  <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
-                    Raw score: {state.score.toFixed(1)}
-                  </p>
                 </div>
               ) : (
                 <p className="mt-5 text-sm text-slate-400">

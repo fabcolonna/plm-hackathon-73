@@ -28,9 +28,16 @@ async function apiRequest<T>(path: string, options: RequestInit = {}) {
 
 // TYPES
 
+export type BatteryLifecycleStatus =
+  | "original"
+  | "repurposed"
+  | "reused"
+  | "remanufactured"
+  | "waste";
+
 export type BatteryStatusResponse = {
   battery_id: string;
-  status: string;
+  status: BatteryLifecycleStatus;
   voltage: number;
   capacity: number;
   soh_percent: number;
@@ -62,6 +69,16 @@ export type CreateBatteryPayload = {
 export type CreateBatteryResponse = {
   message: string;
   battery_id: string;
+};
+
+export type UpdateBatteryMeasurementsPayload = Partial<
+  Pick<BatteryDetailsResponse, "voltage" | "capacity" | "temperature">
+>;
+
+export type UpdateBatteryStatusResponse = {
+  message: string;
+  battery_id: string;
+  new_status: BatteryLifecycleStatus;
 };
 
 export type RecyclerEvaluationRequest = {
@@ -126,4 +143,52 @@ export async function evaluateBatteryForRecycler(
       market_id: payload.market_id.trim(),
     }),
   });
+}
+
+export async function updateBatteryMeasurements(
+  batteryId: string,
+  payload: UpdateBatteryMeasurementsPayload
+) {
+  if (!batteryId.trim()) {
+    throw new Error("Battery ID is required");
+  }
+
+  const hasUpdates = Object.values(payload).some(
+    (value) => typeof value === "number" || value !== undefined
+  );
+
+  if (!hasUpdates) {
+    throw new Error("Provide at least one field to update");
+  }
+
+  return apiRequest<CreateBatteryResponse>(
+    `/garagist/battery/${encodeURIComponent(batteryId.trim())}`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export async function updateBatteryLifecycleStatus(
+  batteryId: string,
+  status: BatteryLifecycleStatus
+) {
+  if (!batteryId.trim()) {
+    throw new Error("Battery ID is required");
+  }
+
+  return apiRequest<UpdateBatteryStatusResponse>(
+    `/battery/status/${encodeURIComponent(batteryId.trim())}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ status }),
+    }
+  );
 }

@@ -1,10 +1,21 @@
 import { useMemo, useState } from "react";
-import { fetchBatteryStatus, type BatteryStatusResponse } from "../lib/api";
+import {
+  fetchBatteryStatus,
+  updateBatteryLifecycleStatus,
+  type BatteryLifecycleStatus,
+  type BatteryStatusResponse,
+} from "../lib/api";
 
-type OutcomeLabel = "Recycle" | "Reuse" | "Remanufacture" | "Repurpose";
+const STATUS_LABELS: Record<BatteryLifecycleStatus, string> = {
+  original: "Original",
+  repurposed: "Repurposed",
+  reused: "Reused",
+  remanufactured: "Remanufactured",
+  waste: "Waste",
+};
 
-const OUTCOME_THEMES: Record<
-  OutcomeLabel,
+const STATUS_THEMES: Record<
+  BatteryLifecycleStatus,
   {
     gradient: string;
     border: string;
@@ -13,33 +24,40 @@ const OUTCOME_THEMES: Record<
     blurb: string;
   }
 > = {
-  Recycle: {
-    gradient: "from-rose-950 via-rose-900 to-slate-950",
-    border: "border-rose-500/40",
-    text: "text-rose-100",
-    badge: "bg-rose-500/20 text-rose-100",
-    blurb: "Materials recovery route unlocked by recycler ops.",
-  },
-  Reuse: {
-    gradient: "from-sky-950 via-sky-900 to-slate-950",
-    border: "border-sky-400/40",
-    text: "text-sky-100",
-    badge: "bg-sky-500/20 text-sky-100",
-    blurb: "Ready for secondary-life deployments with minimal prep.",
-  },
-  Remanufacture: {
+  original: {
     gradient: "from-emerald-950 via-emerald-900 to-slate-950",
     border: "border-emerald-500/40",
     text: "text-emerald-100",
     badge: "bg-emerald-500/20 text-emerald-100",
-    blurb: "Send to reman floor for module refresh and QA.",
+    blurb: "Pack is untouched and ready for its primary duty cycle.",
   },
-  Repurpose: {
+  repurposed: {
     gradient: "from-indigo-950 via-indigo-900 to-slate-950",
     border: "border-indigo-500/40",
     text: "text-indigo-100",
     badge: "bg-indigo-500/20 text-indigo-100",
-    blurb: "Great fit for stationary storage and low-C rate duty.",
+    blurb: "Recommended for stationary storage or low-C-rate reuse.",
+  },
+  reused: {
+    gradient: "from-sky-950 via-sky-900 to-slate-950",
+    border: "border-sky-400/40",
+    text: "text-sky-100",
+    badge: "bg-sky-500/20 text-sky-100",
+    blurb: "Healthy enough to re-enter another vehicle lifecycle.",
+  },
+  remanufactured: {
+    gradient: "from-amber-950 via-amber-900 to-slate-950",
+    border: "border-amber-500/40",
+    text: "text-amber-100",
+    badge: "bg-amber-500/20 text-amber-100",
+    blurb: "Needs component refresh before redeployment.",
+  },
+  waste: {
+    gradient: "from-rose-950 via-rose-900 to-slate-950",
+    border: "border-rose-500/40",
+    text: "text-rose-100",
+    badge: "bg-rose-500/20 text-rose-100",
+    blurb: "Send to certified recycling—no further value in-pack.",
   },
 };
 
@@ -51,17 +69,6 @@ const DEFAULT_THEME = {
   blurb: "Awaiting recycler decision payload.",
 };
 
-const normalizeOutcome = (value: string | null): OutcomeLabel | null => {
-  if (!value) return null;
-  const lowered = value.trim().toLowerCase();
-  if (!lowered) return null;
-  if (lowered.includes("recycle")) return "Recycle";
-  if (lowered.includes("reuse")) return "Reuse";
-  if (lowered.includes("reman")) return "Remanufacture";
-  if (lowered.includes("repurpose")) return "Repurpose";
-  return null;
-};
-
 export default function BatteryStatusPage() {
   const [batteryId, setBatteryId] = useState<string>("");
   const [statusData, setStatusData] = useState<BatteryStatusResponse | null>(
@@ -69,18 +76,18 @@ export default function BatteryStatusPage() {
   );
   const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [isSyncingStatus, setIsSyncingStatus] = useState(false);
 
-  const rawOutcome = statusData?.status ?? null;
-  const normalizedOutcome = useMemo(
-    () => normalizeOutcome(rawOutcome),
-    [rawOutcome]
-  );
+  const lifecycleStatus: BatteryLifecycleStatus | null =
+    statusData?.status ?? null;
   const resultTheme = useMemo(
-    () =>
-      normalizedOutcome ? OUTCOME_THEMES[normalizedOutcome] : DEFAULT_THEME,
-    [normalizedOutcome]
+    () => (lifecycleStatus ? STATUS_THEMES[lifecycleStatus] : DEFAULT_THEME),
+    [lifecycleStatus]
   );
-  const heroLabel = normalizedOutcome ?? rawOutcome ?? "Awaiting analysis";
+  const heroLabel = lifecycleStatus
+    ? STATUS_LABELS[lifecycleStatus]
+    : "Awaiting analysis";
 
   const handleLookup = async (id?: string) => {
     const queryId = (id ?? batteryId).trim();
@@ -95,6 +102,7 @@ export default function BatteryStatusPage() {
     setIsFetching(true);
     setError(null);
     setStatusData(null);
+    setSyncMessage(null);
 
     try {
       const response = await fetchBatteryStatus(queryId);
@@ -113,7 +121,10 @@ export default function BatteryStatusPage() {
   const detailMetrics = statusData
     ? [
         { label: "Battery ID", value: statusData.battery_id },
-        { label: "Status", value: statusData.status },
+        {
+          label: "Status",
+          value: lifecycleStatus ? STATUS_LABELS[lifecycleStatus] : "—",
+        },
         {
           label: "State of Health",
           value:
@@ -145,6 +156,30 @@ export default function BatteryStatusPage() {
       ]
     : [];
 
+  const handleStatusSync = async () => {
+    if (!statusData?.battery_id || !lifecycleStatus || isSyncingStatus) {
+      return;
+    }
+
+    setIsSyncingStatus(true);
+    setSyncMessage(null);
+    try {
+      await updateBatteryLifecycleStatus(
+        statusData.battery_id,
+        lifecycleStatus
+      );
+      setSyncMessage("Status synced with backend.");
+    } catch (requestError) {
+      const message =
+        requestError instanceof Error
+          ? requestError.message
+          : "Unable to update status";
+      setSyncMessage(message);
+    } finally {
+      setIsSyncingStatus(false);
+    }
+  };
+
   return (
     <section className="rounded-3xl border border-slate-900 bg-slate-950/80 p-8 text-white shadow-inner shadow-black/40 space-y-8">
       <header className="space-y-3 text-left">
@@ -162,8 +197,7 @@ export default function BatteryStatusPage() {
             Scan your battery
           </p>
           <p className="mt-2 text-sm text-slate-400">
-            Look up the live passport status by entering a battery ID from the
-            owner app.
+            Look up the live passport status by entering a battery ID.
           </p>
           <div className="mt-4 flex flex-col gap-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
@@ -185,7 +219,7 @@ export default function BatteryStatusPage() {
                   disabled={isFetching}
                   className="flex-1 rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/20 disabled:opacity-40 sm:flex-none sm:min-w-[150px]"
                 >
-                  {isFetching ? "Looking up…" : "Lookup"}
+                  {isFetching ? "Fetching…" : "Fetch Passport"}
                 </button>
               </div>
             </div>
@@ -254,20 +288,25 @@ export default function BatteryStatusPage() {
                 >
                   {heroLabel}
                 </p>
-                {statusData?.status && normalizedOutcome === null && (
-                  <p className="mt-1 text-sm text-slate-300">
-                    Reported status: {statusData.status}
-                  </p>
-                )}
                 <p className="mt-3 text-sm text-slate-200">
                   {statusData ? resultTheme.blurb : DEFAULT_THEME.blurb}
                 </p>
               </div>
-              <p className="text-sm text-slate-400 text-center">
-                {statusData
-                  ? "Values mirror the owner portal so you can confirm what they see."
-                  : "Use Lookup to fetch the latest reading for your battery."}
-              </p>
+              <button
+                type="button"
+                onClick={handleStatusSync}
+                disabled={
+                  !lifecycleStatus || !statusData?.battery_id || isSyncingStatus
+                }
+                className="w-full rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3 text-sm font-semibold text-white transition hover:border-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {isSyncingStatus ? "Updating status…" : "Update status"}
+              </button>
+              {syncMessage && (
+                <p className="text-center text-xs text-slate-400">
+                  {syncMessage}
+                </p>
+              )}
             </div>
           </div>
         </div>

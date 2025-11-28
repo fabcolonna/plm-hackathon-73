@@ -146,16 +146,14 @@ class BatteryRepository:
     
     def create_battery_record(self, battery_id, voltage, capacity, temperature):
         """
-        Create a new battery record in Neo4j database.
+        Create or update a battery record in Neo4j database.
         """
         query = """
-        CREATE (b:Battery {
-            id: $battery_id,
-            voltage: $voltage,
-            capacity: $capacity,
-            temperature: $temperature,
-            created_at: datetime()
-        })
+        MERGE (b:Battery { id: $battery_id })
+        ON CREATE SET b.created_at = datetime()
+        SET b.voltage = $voltage,
+            b.capacity = $capacity,
+            b.temperature = $temperature
         RETURN b
         """
         
@@ -173,6 +171,39 @@ class BatteryRepository:
                     'message': 'Battery record created successfully',
                     'battery_id': battery_id
                 }
+            except Exception as e:
+                raise Exception(f"Database error: {str(e)}")
+
+    def update_battery_measurements(self, battery_id, voltage=None, capacity=None, temperature=None):
+        """Update numeric measurements for an existing battery."""
+        if voltage is None and capacity is None and temperature is None:
+            raise ValueError("At least one field must be provided for update")
+
+        query = """
+        MATCH (b:Battery {id: $battery_id})
+        SET b.voltage = COALESCE($voltage, b.voltage),
+            b.capacity = COALESCE($capacity, b.capacity),
+            b.temperature = COALESCE($temperature, b.temperature)
+        RETURN b
+        """
+
+        parameters = {
+            'battery_id': battery_id,
+            'voltage': voltage,
+            'capacity': capacity,
+            'temperature': temperature,
+        }
+
+        with self.driver.session(database=self.database) as session:
+            try:
+                result = session.run(query, parameters)
+                record = result.single()
+                if record:
+                    return {
+                        'message': 'Battery record updated successfully',
+                        'battery_id': battery_id,
+                    }
+                return None
             except Exception as e:
                 raise Exception(f"Database error: {str(e)}")
             

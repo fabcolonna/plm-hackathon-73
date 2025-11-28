@@ -128,7 +128,9 @@ curl -X POST http://localhost:5001/recycler/evaluate \
 
 ### 2. POST /garagist/battery
 
-Create a new battery record in the Neo4j database.
+Create (or update) a battery record in the Neo4j database.
+
+> ℹ️  The endpoint performs an **upsert** using the battery ID. New batteries are created, and existing ones have their latest voltage, capacity, and temperature overwritten while preserving the original `created_at` timestamp.
 
 **URL:** `http://localhost:5001/garagist/battery`
 
@@ -168,7 +170,46 @@ curl -X POST http://localhost:5001/garagist/battery \
 
 ---
 
-### 3. GET /garagist/battery/:battery_id
+### 3. PATCH /garagist/battery/:battery_id
+
+Update one or more numeric measurements of an existing battery without re-sending every field.
+
+**URL:** `http://localhost:5001/garagist/battery/BATTERY_12345`
+
+**Method:** `PATCH`
+
+**Content-Type:** `application/json`
+
+**Request Body (any subset of fields):**
+```json
+{
+  "voltage": 12.9,
+  "temperature": 28.1
+}
+```
+
+**Success Response (200):**
+```json
+{
+  "message": "Battery record updated successfully",
+  "battery_id": "BATTERY_12345"
+}
+```
+
+**Example:**
+```bash
+curl -X PATCH http://localhost:5001/garagist/battery/BATTERY_12345 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "temperature": 28.1
+  }'
+```
+
+If none of the supported fields (`voltage`, `capacity`, `temperature`) are provided, the API returns `400 Provide at least one field to update`.
+
+---
+
+### 4. GET /garagist/battery/:battery_id
 
 Read all battery information from the Neo4j database (approximately 10 fields).
 
@@ -199,7 +240,7 @@ curl http://localhost:5001/garagist/battery/BATTERY_12345
 
 ---
 
-### 4. GET /proprietaire/status/:battery_id
+### 5. GET /proprietaire/status/:battery_id
 
 Get the status of a battery for the owner.
 
@@ -225,7 +266,7 @@ curl http://localhost:5001/proprietaire/status/BATTERY_12345
 
 ---
 
-### 5. PUT /battery/status/:battery_id
+### 6. PUT /battery/status/:battery_id
 
 Update the status of a battery.
 
@@ -268,7 +309,7 @@ curl -X PUT http://localhost:5001/battery/status/BAT_002 \
 
 ---
 
-### 6. GET /health
+### 7. GET /health
 
 Health check endpoint.
 
@@ -357,14 +398,14 @@ The algorithm evaluates batteries based on:
 
 ## API Endpoints Summary
 
-| Endpoint | Method | Purpose | User Type |
-|----------|--------|---------|-----------|
-| `/recycler/evaluate` | POST | Run decision algorithm | Recycler |
-| `/garagist/battery` | POST | Create battery record | Garagist |
-| `/garagist/battery/:id` | GET | Get all battery data | Garagist |
-| `/proprietaire/status/:id` | GET | Get battery status | Proprietaire |
-| `/battery/status/:id` | PUT | Update battery status | Any |
-| `/health` | GET | Health check | System |
+| Endpoint                   | Method | Purpose                | User Type    |
+| -------------------------- | ------ | ---------------------- | ------------ |
+| `/recycler/evaluate`       | POST   | Run decision algorithm | Recycler     |
+| `/garagist/battery`        | POST   | Create battery record  | Garagist     |
+| `/garagist/battery/:id`    | GET    | Get all battery data   | Garagist     |
+| `/proprietaire/status/:id` | GET    | Get battery status     | Proprietaire |
+| `/battery/status/:id`      | PUT    | Update battery status  | Any          |
+| `/health`                  | GET    | Health check           | System       |
 
 ---
 

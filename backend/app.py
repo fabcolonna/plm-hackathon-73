@@ -82,6 +82,39 @@ def garagist_create():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# Garagist PATCH endpoint - update select battery measurements
+@app.route('/garagist/battery/<battery_id>', methods=['PATCH'])
+def garagist_update(battery_id):
+    try:
+        data = request.get_json() or {}
+        voltage = data.get('voltage')
+        capacity = data.get('capacity')
+        temperature = data.get('temperature')
+
+        if voltage is None and capacity is None and temperature is None:
+            return jsonify({'error': 'Provide at least one field to update'}), 400
+
+        repo = BatteryRepository(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, database_name=NEO4J_DB_NAME)
+
+        try:
+            result = repo.update_battery_measurements(
+                battery_id,
+                voltage=voltage,
+                capacity=capacity,
+                temperature=temperature,
+            )
+
+            if not result:
+                return jsonify({'error': 'Battery not found'}), 404
+
+            return jsonify(result), 200
+        finally:
+            repo.close()
+    except ValueError as invalid:
+        return jsonify({'error': str(invalid)}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # Garagist GET endpoint - read all battery information from Neo4j
 @app.route('/garagist/battery/<battery_id>', methods=['GET'])
 def garagist_read(battery_id):
