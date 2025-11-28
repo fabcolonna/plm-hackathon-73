@@ -179,46 +179,58 @@ export default function BatteryRecommendationPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          {recommendationCards.map((state) => (
-            <article
-              key={state.label}
-              className={`rounded-2xl border bg-gradient-to-br ${
-                CARD_ACCENTS[state.label]
-              } p-6 shadow-lg shadow-black/20`}
-            >
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
-                    {state.label}
-                  </p>
-                  <p className="text-2xl font-semibold text-white">
-                    {state.score !== null
-                      ? `Score ${state.score.toFixed(1)}`
-                      : "Awaiting backend score"}
-                  </p>
-                </div>
-              </div>
-              {state.score !== null ? (
-                <div className="mt-5 space-y-2">
-                  <div className="h-3 rounded-full bg-white/10">
-                    <div
-                      className="h-3 rounded-full bg-white/80"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          Math.max(0, toPercentNumber(state.score))
-                        )}%`,
-                      }}
-                    />
+          {recommendationCards.map((state) => {
+            const isTopChoice = topCard?.label === state.label;
+            return (
+              <article
+                key={state.label}
+                className={`rounded-2xl border bg-gradient-to-br ${
+                  CARD_ACCENTS[state.label]
+                } p-6 transition-shadow duration-300 ${
+                  isTopChoice
+                    ? "ring-2 ring-amber-300/70 shadow-[0_0_35px_rgba(251,191,36,0.35)]"
+                    : "shadow-lg shadow-black/20"
+                }`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.35em] text-slate-400">
+                      {state.label}
+                    </p>
+                    <p className="text-2xl font-semibold text-white">
+                      {state.score !== null
+                        ? `Score ${state.score.toFixed(1)}`
+                        : "Awaiting backend score"}
+                    </p>
                   </div>
+                  {isTopChoice && (
+                    <span className="rounded-full border border-amber-200/60 bg-amber-200/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-amber-100">
+                      Top pick
+                    </span>
+                  )}
                 </div>
-              ) : (
-                <p className="mt-5 text-sm text-slate-400">
-                  No score returned for this path yet.
-                </p>
-              )}
-            </article>
-          ))}
+                {state.score !== null ? (
+                  <div className="mt-5 space-y-2">
+                    <div className="h-3 rounded-full bg-white/10">
+                      <div
+                        className="h-3 rounded-full bg-white/80"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            Math.max(0, toPercentNumber(state.score))
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-5 text-sm text-slate-400">
+                    No score returned for this path yet.
+                  </p>
+                )}
+              </article>
+            );
+          })}
         </div>
       </section>
     </section>

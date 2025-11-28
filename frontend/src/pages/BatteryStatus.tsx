@@ -5,6 +5,11 @@ import {
   type BatteryLifecycleStatus,
   type BatteryStatusResponse,
 } from "../lib/api";
+import {
+  clearPendingStatusRequest,
+  getPendingStatusRequest,
+  type PendingStatusRequest,
+} from "../lib/pendingStatus";
 
 const STATUS_LABELS: Record<BatteryLifecycleStatus, string> = {
   original: "Original",
@@ -77,7 +82,9 @@ export default function BatteryStatusPage() {
   const [isFetching, setIsFetching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [isSyncingStatus, setIsSyncingStatus] = useState(false);
+  const [isConfirmingStatus, setIsConfirmingStatus] = useState(false);
+  const [pendingRequest, setPendingRequest] =
+    useState<PendingStatusRequest | null>(null);
 
   const lifecycleStatus: BatteryLifecycleStatus | null =
     statusData?.status ?? null;
@@ -103,10 +110,12 @@ export default function BatteryStatusPage() {
     setError(null);
     setStatusData(null);
     setSyncMessage(null);
+    setPendingRequest(null);
 
     try {
       const response = await fetchBatteryStatus(queryId);
       setStatusData(response);
+      setPendingRequest(getPendingStatusRequest(response.battery_id));
     } catch (requestError) {
       const message =
         requestError instanceof Error
@@ -156,19 +165,22 @@ export default function BatteryStatusPage() {
       ]
     : [];
 
-  const handleStatusSync = async () => {
-    if (!statusData?.battery_id || !lifecycleStatus || isSyncingStatus) {
+  const handleConfirmPendingStatus = async () => {
+    if (!statusData?.battery_id || !pendingRequest || isConfirmingStatus) {
       return;
     }
 
-    setIsSyncingStatus(true);
+    setIsConfirmingStatus(true);
     setSyncMessage(null);
     try {
       await updateBatteryLifecycleStatus(
         statusData.battery_id,
-        lifecycleStatus
+        pendingRequest.proposedStatus
       );
-      setSyncMessage("Status synced with backend.");
+      clearPendingStatusRequest(statusData.battery_id);
+      setPendingRequest(null);
+      setSyncMessage("Status confirmed and synced.");
+      await handleLookup(statusData.battery_id);
     } catch (requestError) {
       const message =
         requestError instanceof Error
@@ -176,7 +188,7 @@ export default function BatteryStatusPage() {
           : "Unable to update status";
       setSyncMessage(message);
     } finally {
-      setIsSyncingStatus(false);
+      setIsConfirmingStatus(false);
     }
   };
 
@@ -292,16 +304,36 @@ export default function BatteryStatusPage() {
                   {statusData ? resultTheme.blurb : DEFAULT_THEME.blurb}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleStatusSync}
-                disabled={
-                  !lifecycleStatus || !statusData?.battery_id || isSyncingStatus
-                }
-                className="w-full rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3 text-sm font-semibold text-white transition hover:border-slate-600 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {isSyncingStatus ? "Updating status…" : "Update status"}
-              </button>
+              {pendingRequest ? (
+                <div className="space-y-3 rounded-2xl border border-amber-500/30 bg-amber-950/40 p-4">
+                  <p className="text-sm text-amber-100">
+                    Garagist flagged this battery as
+                    <span className="font-semibold">
+                      {" "}
+                      {STATUS_LABELS[pendingRequest.proposedStatus]}
+                    </span>
+                    . Confirm to sync the change.
+                  </p>
+                  <p className="text-xs text-amber-200/80">
+                    Requested{" "}
+                    {new Date(pendingRequest.createdAt).toLocaleString()}.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleConfirmPendingStatus}
+                    disabled={isConfirmingStatus}
+                    className="w-full rounded-xl bg-amber-500/80 px-4 py-2 text-sm font-semibold text-amber-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isConfirmingStatus
+                      ? "Confirming…"
+                      : "Confirm status change"}
+                  </button>
+                </div>
+              ) : (
+                <p className="text-sm text-slate-400">
+                  No pending garage alerts for this battery.
+                </p>
+              )}
               {syncMessage && (
                 <p className="text-center text-xs text-slate-400">
                   {syncMessage}

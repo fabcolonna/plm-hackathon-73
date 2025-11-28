@@ -3,10 +3,28 @@ import {
   fetchBatteryDetails,
   updateBatteryMeasurements,
   type BatteryDetailsResponse,
+  type BatteryLifecycleStatus,
 } from "../lib/api";
+import { queuePendingStatusRequest } from "../lib/pendingStatus";
 
 const DEFAULT_BATTERY_ID = "BATTERY_12345";
 type EditableDetailKey = "voltage" | "capacity" | "temperature";
+
+const LIFECYCLE_STATUS_OPTIONS: BatteryLifecycleStatus[] = [
+  "original",
+  "repurposed",
+  "reused",
+  "remanufactured",
+  "waste",
+];
+
+const STATUS_LABELS: Record<BatteryLifecycleStatus, string> = {
+  original: "Original",
+  repurposed: "Repurposed",
+  reused: "Reused",
+  remanufactured: "Remanufactured",
+  waste: "Waste",
+};
 
 const DETAIL_FIELD_ORDER: Array<{
   key: keyof BatteryDetailsResponse;
@@ -63,6 +81,11 @@ export default function BatteryInfoPage() {
   const [draftValue, setDraftValue] = useState("0");
   const [isSavingField, setIsSavingField] = useState(false);
   const [updateMessage, setUpdateMessage] = useState<string | null>(null);
+  const [proposedStatus, setProposedStatus] =
+    useState<BatteryLifecycleStatus>("original");
+  const [statusQueueMessage, setStatusQueueMessage] = useState<string | null>(
+    null
+  );
 
   const formattedFields = useMemo(() => {
     if (!details) return [];
@@ -150,6 +173,18 @@ export default function BatteryInfoPage() {
     } finally {
       setIsSavingField(false);
     }
+  };
+
+  const handleQueueStatusChange = () => {
+    if (!details) {
+      setStatusQueueMessage("Load a battery before sending status updates.");
+      return;
+    }
+
+    queuePendingStatusRequest(details.battery_id, proposedStatus);
+    setStatusQueueMessage(
+      `Signaled ${STATUS_LABELS[proposedStatus]} to the battery owner.`
+    );
   };
 
   return (
@@ -285,6 +320,46 @@ export default function BatteryInfoPage() {
             {updateMessage && (
               <p className="text-xs text-slate-400">{updateMessage}</p>
             )}
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4 space-y-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.25em] text-slate-500">
+                  Owner alert
+                </p>
+                <p className="mt-2 text-sm text-slate-400">
+                  Pick the next lifecycle status and send the owner a pending
+                  alert. The status becomes official once they confirm it on
+                  their dashboard.
+                </p>
+              </div>
+              <label className="block text-sm font-semibold text-slate-200">
+                Lifecycle outcome
+                <select
+                  value={proposedStatus}
+                  onChange={(event) =>
+                    setProposedStatus(
+                      event.target.value as BatteryLifecycleStatus
+                    )
+                  }
+                  className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-white focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/40"
+                >
+                  {LIFECYCLE_STATUS_OPTIONS.map((status) => (
+                    <option key={status} value={status}>
+                      {STATUS_LABELS[status]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="w-full rounded-xl bg-sky-500/80 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-40"
+                onClick={handleQueueStatusChange}
+              >
+                Notify owner about change
+              </button>
+              {statusQueueMessage && (
+                <p className="text-xs text-slate-400">{statusQueueMessage}</p>
+              )}
+            </div>
           </>
         ) : (
           <p className="text-sm text-slate-400">
