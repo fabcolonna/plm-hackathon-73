@@ -1,28 +1,6 @@
-# Battery Passport Control Tower (PLM Hackathon 73)
+# Battery Passport Control Tower ~ PLM Hackathon Group 72 @ ESILV
 
 End-to-end prototype that synchronizes battery passport data between garages, recyclers, and owners. The stack couples a Neo4j-backed Flask API with a role-aware React/Vite frontend, all focused on Problem 7 of the PLM Hackathon.
-
-## Table of Contents
-
-- [Battery Passport Control Tower (PLM Hackathon 73)](#battery-passport-control-tower-plm-hackathon-73)
-  - [Table of Contents](#table-of-contents)
-  - [Solution Overview](#solution-overview)
-  - [Architecture](#architecture)
-  - [Technology Stack](#technology-stack)
-  - [Backend API (Flask + Neo4j)](#backend-api-flask--neo4j)
-    - [Environment variables](#environment-variables)
-    - [Setup \& run](#setup--run)
-    - [API surface](#api-surface)
-  - [Decision Engine Highlights](#decision-engine-highlights)
-  - [Data Layer \& Neo4j](#data-layer--neo4j)
-  - [Frontend (React + Vite)](#frontend-react--vite)
-    - [Key capabilities](#key-capabilities)
-    - [Environment variables](#environment-variables-1)
-    - [Setup \& run](#setup--run-1)
-  - [Local Development Workflow](#local-development-workflow)
-  - [Testing \& Quality Notes](#testing--quality-notes)
-  - [Deployment Tips](#deployment-tips)
-  - [Troubleshooting](#troubleshooting)
 
 ## Solution Overview
 
@@ -37,11 +15,11 @@ End-to-end prototype that synchronizes battery passport data between garages, re
 
 ```
 ┌────────────┐      HTTPS       ┌──────────────┐       Bolt Driver       ┌────────────┐
-│ React/Vite │ <──────────────> │ Flask API    │ <──────────────────────>│  Neo4j DB   │
-│ Frontend   │  REST + Web QR  │ (app.py)     │  Digital twin queries   │ Battery TWN │
+│ React/Vite │ <──────────────> │   Flask API  │ <──────────────────────>│  Neo4j DB  │
+│ Frontend   │  REST + Web QR   │   (app.py)   │   Digital twin queries  │            │
 └────────────┘                  └──────────────┘                         └────────────┘
 			│                                │                                       │
-			│ Role routing & auth context    │ DecisionEngine + BusinessRules         │
+			│ Role routing & auth context    │ DecisionEngine + BusinessRules        │
 			└────────────────────────────────┴───────────────────────────────────────┘
 ```
 
@@ -76,13 +54,10 @@ Create a `.env` file from `.env.example` before running the API.
 ```bash
 cd backend
 python3 -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+source venv/bin/activate         # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env            # then fill in your Neo4j credentials
-python app.py                   # runs on http://localhost:5001
-
-# Production-style launch
-gunicorn -w 4 -b 0.0.0.0:5000 app:app
+cp .env.example .env             # then fill in your Neo4j credentials
+python3 app.py                   # runs on http://localhost:5001
 ```
 
 Flask automatically enables CORS, so the Vite dev server can call the API without extra proxying.
@@ -123,15 +98,6 @@ Responses follow the structure documented in `backend/README.md` and return desc
 
 **Location**: `frontend/`
 
-### Key capabilities
-
-- **Role-aware navigation**: `AuthProvider` stores the selected role in `localStorage`; `ProtectedRoute` guards recycler/garagist workspaces.
-- **QR-powered lookups**: `useQrScanner` + `QrScannerOverlay` leverage the `BarcodeDetector` API for scanning IDs.
-- **Workspaces**:
-	- `BatteryInfo` (garagist) mirrors the `/garagist` API response, supports in-place edits of voltage/capacity/temperature, and queues owner status updates via pending requests stored client-side.
-	- `BatteryRecommendations` (recycler) triggers the `/recycler/evaluate` endpoint, visualizes the four-path scorecard, and highlights confidence separation.
-	- `BatteryStatus` (public/owner) fetches `/proprietaire/status/:id`, applies themed tiles per lifecycle state, and lets owners approve pending status changes.
-
 ### Environment variables
 
 Frontend clients need a single variable to point to the Flask API:
@@ -148,10 +114,6 @@ Create a `.env.local` (ignored by Git) inside `frontend/` to override the defaul
 cd frontend
 npm install              # or pnpm/yarn
 npm run dev              # http://localhost:5173 by default
-
-npm run lint             # ESLint powered by the Vite React template
-npm run build            # Type-check + production bundle
-npm run preview          # Serves the build output
 ```
 
 The frontend expects the API to be reachable at `VITE_API_BASE_URL`. During local dev, launch the backend first or change the env var to match.
@@ -162,23 +124,6 @@ The frontend expects the API to be reachable at `VITE_API_BASE_URL`. During loca
 2. **Run the backend** (`python app.py`) with `.env` configured.
 3. **Run the frontend** (`npm run dev`) and ensure `VITE_API_BASE_URL` points to the Flask port.
 4. Use the Home page to sign in as a role (garage/recycler) and exercise each workspace.
-
-Recommended IDE add-ons: Python linting/formatting, Neo4j Browser/Desk for inspecting graph results, and React DevTools for UI debugging.
-
-## Testing & Quality Notes
-
-- Automated tests are not yet defined. Focus on manual verification:
-	- Backend: exercise each endpoint with `curl`/Postman; ensure Neo4j nodes and relationships are created as expected.
-	- Frontend: run through each persona workflow in multiple browsers (Chrome/Edge for QR scanning support).
-- Consider adding pytest + React Testing Library suites in future iterations.
-
-## Deployment Tips
-
-- **Backend**: Containerize with Gunicorn + environment variables, or deploy to services like Render/Fly.io. Ensure the Neo4j instance is reachable and secured (TLS, strong passwords).
-- **Frontend**: `npm run build` creates a static bundle suitable for Vercel, Netlify, or any static host. Set `VITE_API_BASE_URL` in the hosting provider’s env settings.
-- **Neo4j**: For production, run AuraDB or a managed Neo4j server with proper networking and user roles.
-
-## Troubleshooting
 
 - **Port conflicts**: If port 5000 is occupied, Flask falls back to 5001—update `VITE_API_BASE_URL` to match.
 - **Neo4j authentication errors**: Verify `.env` credentials and that the database name exists.
