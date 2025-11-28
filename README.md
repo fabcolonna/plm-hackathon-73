@@ -117,16 +117,3 @@ npm run dev              # http://localhost:5173 by default
 ```
 
 The frontend expects the API to be reachable at `VITE_API_BASE_URL`. During local dev, launch the backend first or change the env var to match.
-
-## Local Development Workflow
-
-1. **Start Neo4j** locally (Desktop app or Docker) and import `db/batterypass.dump` if you need demo data.
-2. **Run the backend** (`python app.py`) with `.env` configured.
-3. **Run the frontend** (`npm run dev`) and ensure `VITE_API_BASE_URL` points to the Flask port.
-4. Use the Home page to sign in as a role (garage/recycler) and exercise each workspace.
-
-- **Port conflicts**: If port 5000 is occupied, Flask falls back to 5001—update `VITE_API_BASE_URL` to match.
-- **Neo4j authentication errors**: Verify `.env` credentials and that the database name exists.
-- **`Battery not found`** responses: Confirm the battery ID exists in Neo4j and that passport relationships are in place.
-- **QR scanner not working**: Barcode detection requires HTTPS or `localhost` plus a Chromium-based browser. Provide manual ID entry as a fallback.
-- **CORS issues**: Ensure the backend stays on the configured origin and that no proxies strip the `Origin` header.
