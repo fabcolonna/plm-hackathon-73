@@ -187,7 +187,7 @@ class BatteryRepository:
                b.voltage as voltage,
                b.capacity as capacity,
                b.temperature as temperature,
-               b.created_at as created_at,
+               toString(b.created_at) as created_at,
                p.soh_percent as soh_percent,
                p.chemistry as chemistry,
                p.battery_model as battery_model,
