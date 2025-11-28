@@ -225,7 +225,50 @@ curl http://localhost:5001/proprietaire/status/BATTERY_12345
 
 ---
 
-### 5. GET /health
+### 5. PUT /battery/status/:battery_id
+
+Update the status of a battery.
+
+**URL:** `http://localhost:5001/battery/status/BAT_002`
+
+**Method:** `PUT`
+
+**Content-Type:** `application/json`
+
+**Request Body:**
+```json
+{
+  "status": "Good"
+}
+```
+
+**Success Response (200):**
+```json
+{
+  "message": "Battery status updated successfully",
+  "battery_id": "BAT_002",
+  "new_status": "Good"
+}
+```
+
+**Example:**
+```bash
+curl -X PUT http://localhost:5001/battery/status/BAT_002 \
+  -H "Content-Type: application/json" \
+  -d '{"status": "Good"}'
+```
+
+**Possible status values:**
+- "Good"
+- "Degraded"
+- "Critical"
+- "Recycled"
+- "Remanufactured"
+- Or any custom status string
+
+---
+
+### 6. GET /health
 
 Health check endpoint.
 
@@ -312,12 +355,26 @@ The algorithm evaluates batteries based on:
 
 ---
 
+## API Endpoints Summary
+
+| Endpoint | Method | Purpose | User Type |
+|----------|--------|---------|-----------|
+| `/recycler/evaluate` | POST | Run decision algorithm | Recycler |
+| `/garagist/battery` | POST | Create battery record | Garagist |
+| `/garagist/battery/:id` | GET | Get all battery data | Garagist |
+| `/proprietaire/status/:id` | GET | Get battery status | Proprietaire |
+| `/battery/status/:id` | PUT | Update battery status | Any |
+| `/health` | GET | Health check | System |
+
+---
+
 ## Notes
 
 - **Recycler endpoint**: Takes battery ID, returns 4 evaluation scores
 - **Garagist POST**: Creates a battery record with 4 required fields
 - **Garagist GET**: Returns approximately 10 fields of battery data
 - **Proprietaire GET**: Returns battery status information
+- **Update status**: Updates only the battery_status field in BatteryPassport
 - CORS is enabled for React frontend communication
 - All database operations properly open/close connections
 - Environment variables are loaded from `.env` file
@@ -344,3 +401,7 @@ If port 5000 is taken, Flask will automatically use 5001. Update your curl comma
 - Ensure the battery exists in Neo4j with the correct ID format
 - Check that BatteryPassport and MarketConfig nodes exist
 - Verify the database name in `.env` matches your Neo4j database
+
+**Update status fails:**
+- Ensure the battery has a BatteryPassport node connected via HAS_PASSPORT relationship
+- Verify the battery ID exists in the database

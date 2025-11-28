@@ -175,7 +175,36 @@ class BatteryRepository:
                 }
             except Exception as e:
                 raise Exception(f"Database error: {str(e)}")
-
+            
+    # create method to update battery status from battery id
+    def update_battery_status(self, battery_id, new_status):
+        """
+        Met à jour le statut de la batterie dans Neo4j.
+        
+        Args:
+            battery_id: ID de la batterie
+            new_status: Nouveau statut à définir
+        
+        Returns:
+            Booléen indiquant si la mise à jour a réussi
+        """
+        with self.driver.session(database=self.database) as session:
+            success = session.execute_write(self._update_status_query, battery_id, new_status)
+            return success
+        
+    @staticmethod
+    def _update_status_query(tx, battery_id, new_status):
+        #updates the BatteryPassport node and battery_status property
+        query = """
+        MATCH (b:Battery {id: $bat_id})-[:HAS_PASSPORT]->(p:BatteryPassport)
+        SET p.battery_status = $status, 
+            p.status = $status
+        RETURN p.battery_status AS updated_status
+        """
+        result = tx.run(query, bat_id=battery_id, status=new_status) 
+        record = result.single()
+        return record is not None
+    
     def get_all_battery_data(self, battery_id):
         """
         Get all battery information from Neo4j database (~10 fields).

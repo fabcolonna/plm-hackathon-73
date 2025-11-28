@@ -120,6 +120,37 @@ def proprietaire_status(battery_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# Update battery status endpoint
+@app.route('/battery/status/<battery_id>', methods=['PUT'])
+def update_battery_status(battery_id):
+    try:
+        data = request.get_json()
+        
+        # Extract new status
+        new_status = data.get('status')
+        
+        if not new_status:
+            return jsonify({'error': 'Status field is required'}), 400
+        
+        repo = BatteryRepository(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD, database_name=NEO4J_DB_NAME)
+        
+        try:
+            success = repo.update_battery_status(battery_id, new_status)
+            
+            if not success:
+                return jsonify({'error': 'Battery not found or update failed'}), 404
+            
+            return jsonify({
+                'message': 'Battery status updated successfully',
+                'battery_id': battery_id,
+                'new_status': new_status
+            }), 200
+        finally:
+            repo.close()
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'healthy'}), 200
