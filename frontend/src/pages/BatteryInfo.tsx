@@ -42,12 +42,6 @@ export default function BatteryInfoPage() {
 
   return (
     <section className="rounded-3xl border border-slate-900 bg-slate-950/80 p-10 text-white shadow-inner shadow-black/40 space-y-10">
-
-      {/* HEADER */}
-      <p className="text-xs uppercase tracking-[0.35em] text-sky-300">
-        Protected · Garage
-      </p>
-
       <div className="flex items-center justify-between">
         <h1 className="text-4xl font-semibold leading-tight">Battery Info</h1>
 
@@ -61,17 +55,17 @@ export default function BatteryInfoPage() {
       </div>
 
       <p className="text-sm text-slate-400">
-        Complete battery information panel.
+        Complete battery information panel for mechanics to assess battery
+        health.
       </p>
 
       {/* A. Identification & Safety */}
       <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-xl space-y-6">
         <h2 className="text-2xl font-semibold text-sky-300">
-          A. Identification & Safety
+          Identification & Safety
         </h2>
 
         <div className="grid md:grid-cols-3 gap-6">
-
           <label className="flex flex-col gap-1 text-sm">
             <span>Status</span>
             <input
@@ -134,17 +128,15 @@ export default function BatteryInfoPage() {
         </div>
       </section>
 
-
       {/* B. Diagnosis & Health Status */}
       <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-xl space-y-6">
         <h2 className="text-2xl font-semibold text-sky-300">
-          B. Diagnosis & Health Status
+          Diagnosis & Health Status
         </h2>
 
         <div className="grid md:grid-cols-3 gap-6">
-
           <label className="flex flex-col gap-1 text-sm md:col-span-2">
-            <span>defects & malfunctions</span>
+            <span>Defects & Malfunctions</span>
             <input
               disabled={!isEditing}
               value={fieldsB.defects}
@@ -194,7 +186,7 @@ export default function BatteryInfoPage() {
             />
           </label>
 
-          <label className="flex flex-col gap-1 text-sm md:col-span-3">
+          <label className="flex flex-col gap-1 text-sm">
             <span>Total Energy Throughput</span>
             <input
               disabled={!isEditing}
@@ -214,7 +206,7 @@ export default function BatteryInfoPage() {
       {/* C. Repairability */}
       <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-xl space-y-6">
         <h2 className="text-2xl font-semibold text-sky-300">
-          C. Repairability & Feasibility
+          Repairability & Feasibility
         </h2>
 
         <div className="grid md:grid-cols-3 gap-6">
@@ -230,7 +222,7 @@ export default function BatteryInfoPage() {
             />
           </label>
 
-          <label className="flex flex-col gap-1 text-sm md:col-span-2">
+          <label className="flex flex-col gap-1 text-sm md:col-span-1">
             <span>Part Numbers</span>
             <input
               disabled={!isEditing}
